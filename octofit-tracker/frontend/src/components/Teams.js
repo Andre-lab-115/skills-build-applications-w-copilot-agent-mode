@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 function Teams() {
   const [teams, setTeams] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [filterText, setFilterText] = useState('');
+  const [selectedTeam, setSelectedTeam] = useState(null);
   const codespaceName = process.env.REACT_APP_CODESPACE_NAME;
   const endpoint = codespaceName
     ? `https://${codespaceName}-8000.app.github.dev/api/teams/`
     : 'http://localhost:8000/api/teams/';
 
-  useEffect(() => {
+  const fetchTeams = useCallback(() => {
+    setLoading(true);
     console.log('Teams endpoint:', endpoint);
     fetch(endpoint)
       .then((response) => {
@@ -25,25 +29,109 @@ function Teams() {
       .catch((fetchError) => {
         console.error('Teams fetch error:', fetchError);
         setError(fetchError.message);
-      });
+      })
+      .finally(() => setLoading(false));
   }, [endpoint]);
 
+  useEffect(() => {
+    fetchTeams();
+  }, [fetchTeams]);
+
+  const filteredTeams = teams.filter((team) =>
+    JSON.stringify(team).toLowerCase().includes(filterText.toLowerCase())
+  );
+
+  const tableHeaders = filteredTeams.length ? Object.keys(filteredTeams[0]) : [];
+
   return (
-    <div>
-      <h2>Teams</h2>
-      <p className="text-muted">Fetching from: {endpoint}</p>
-      {error && <div className="alert alert-danger">{error}</div>}
-      {teams.length === 0 && !error ? (
-        <div className="alert alert-info">No teams found.</div>
-      ) : (
-        <div className="list-group">
-          {teams.map((team, index) => (
-            <div key={index} className="list-group-item">
-              <pre className="mb-0">{JSON.stringify(team, null, 2)}</pre>
-            </div>
-          ))}
+    <div className="card shadow-sm card-section">
+      <div className="card-body">
+        <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+          <div>
+            <h2 className="h4">Teams</h2>
+            <p className="text-muted mb-0">Endpoint: <a className="link-primary" href={endpoint} target="_blank" rel="noreferrer">{endpoint}</a></p>
+          </div>
+          <button className="btn btn-primary" onClick={fetchTeams} disabled={loading}>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
-      )}
+
+        <form className="row g-2 align-items-center mb-4" onSubmit={(event) => event.preventDefault()}>
+          <div className="col-md-8">
+            <label htmlFor="teamSearch" className="form-label visually-hidden">
+              Search teams
+            </label>
+            <input
+              id="teamSearch"
+              type="search"
+              className="form-control"
+              placeholder="Search teams..."
+              value={filterText}
+              onChange={(event) => setFilterText(event.target.value)}
+            />
+          </div>
+          <div className="col-auto">
+            <button type="button" className="btn btn-secondary" onClick={() => setFilterText('')}>
+              Clear
+            </button>
+          </div>
+        </form>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        {filteredTeams.length === 0 && !error ? (
+          <div className="alert alert-info">No teams found.</div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-hover table-bordered align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th scope="col">#</th>
+                  {tableHeaders.map((header) => (
+                    <th scope="col" key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTeams.map((team, index) => (
+                  <tr key={index} className="table-row-clickable" onClick={() => setSelectedTeam(team)}>
+                    <th scope="row">{index + 1}</th>
+                    {tableHeaders.map((header) => (
+                      <td key={`${index}-${header}`}>
+                        {typeof team[header] === 'object' ? JSON.stringify(team[header]) : team[header] ?? ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {selectedTeam && (
+          <div>
+            <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1" aria-modal="true" role="dialog">
+              <div className="modal-dialog modal-xl modal-dialog-centered">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">Team Details</h5>
+                    <button type="button" className="btn-close" onClick={() => setSelectedTeam(null)} aria-label="Close" />
+                  </div>
+                  <div className="modal-body">
+                    <pre>{JSON.stringify(selectedTeam, null, 2)}</pre>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => setSelectedTeam(null)}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-backdrop fade show" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
